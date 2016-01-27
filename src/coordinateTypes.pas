@@ -1,5 +1,5 @@
 {
-Copyright (c) 2015 Institute for Solar Energy Research Hameln/Emmerthal
+Copyright (c) 2015 Institute for Solar Energy Research Hamelin
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions

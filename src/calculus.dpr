@@ -18,8 +18,9 @@ are met:
     from this software without specific prior written permission.
 
  4. Redistributions of any form whatsoever must retain the following
-    acknowledgment: 'This product includes the SunCalculatorLibrary developed 
-	by the Institute for Solar Energy Research Hamelin (www.isfh.de)'
+    acknowledgment: 'This product includes the SunCalculator-Library developed 
+	by Marco Ernst and Hendrik Holst at the 
+	Institute for Solar Energy Research Hamelin (www.isfh.de)'
 	
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT

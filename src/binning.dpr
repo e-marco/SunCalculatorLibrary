@@ -1,22 +1,20 @@
 {
-Copyright (c) 2015 Institute for Solar Energy Research Hamelin
+Updated version July 2019. 
+Forked from the original repository https://github.com/ISFH/SunCalculatorLibrary
 
+Copyright (c) 2015 Institute for Solar Energy Research Hamelin
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
 are met:
-
  1. Redistributions of source code must retain the above copyright
     notice, this list of conditions and the following disclaimer.
-
  2. Redistributions in binary form must reproduce the above copyright
     notice, this list of conditions and the following disclaimer in
     the documentation and/or other materials provided with the
     distribution.
-
  3. Neither the name of the copyright holder nor the names of its
     contributors may be used to endorse or promote products derived
     from this software without specific prior written permission.
-
  4. Redistributions of any form whatsoever must retain the following
     acknowledgment: 'This product includes the SunCalculator-Library developed 
 	by Marco Ernst and Hendrik Holst at the 
@@ -47,10 +45,11 @@ library binning;
   using PChar or ShortString parameters. }
 
 uses
-  SysUtils,
-  Classes,
-  Grids,
-  Math,
+  System.SimpleShareMem,
+  System.SysUtils,
+  System.Classes,
+  Vcl.Grids,
+  System.Math,
   radiationTypes in 'radiationTypes.pas';
 
 type TArrayOfDouble = Array of double;
@@ -58,9 +57,6 @@ type TArrayOfDouble = Array of double;
 var
   BinMatrix : array [1..752,1..129600] of double;
   PostProcessingMatrix : array [1..752,1..129600] of double;
-
-  BinMatrixLLI : array [1..20,1..6,1..129600] of double;
-  PostProcessingMatrixLLI : array [1..20,1..6,1..129600] of double;
 
   isBinMatrixInitialized : boolean;
   isPostProcessingMatrixInitialized : boolean;
@@ -233,10 +229,6 @@ begin
 
 end;
 
-// New bin function 1/4/2014
-// this one holds irradiance and flux
-
-// updated 16.06.2015 to receive wavelength dependend photonflux
 // Bin photon flux data either by ALT and AZI or by YAN and ZAN.
 // ALT_AZI=true -> the function uses ALT & AZI, values of YAN & ZAN are ignored
 // ALT_AZI=false -> the function uses YAN & ZAN, values of ALT & AZI are ignored
@@ -707,6 +699,303 @@ begin
   end;  // with OutputGrid do begin
 end;
 
+
+// Call to get the binning data
+// ALT_AZI=true -> the function uses ALT & AZI, values of YAN & ZAN are ignored
+// ALT_AZI=false -> the function uses YAN & ZAN, values of ALT & AZI are ignored
+// PhotonFlux is the z-data, could be any floating point value
+// direct, diffuse : true if checked!
+function BinningOutputVar(BinWidth : integer; ALT_AZI, YAN_ZAN, TTA_checked,
+  DirectIrradiance, DiffuseIrradiance:boolean; irradiance_title, flux_title:string;
+  wantPhotonData:boolean; numberOfWavelengths:integer; startWavelength, endWavelength, intervalWavelength : integer; var OutputGrid : TStringGrid):boolean; STDCALL;
+var j,counter,photonCount : integer;
+    x_max, y_max, x_bins, y_bins : integer;
+    x_binwidth, y_binwidth : integer;
+begin
+  try
+      result := true;
+
+    if(wantPhotonData) then
+      photonCount := numberOfWavelengths
+    else
+      photonCount := 0;
+
+
+    if ALT_AZI=true then
+    begin
+      x_max:=360; // AZI = 0° ... 360°
+      y_max:=180; // ALT = -90° ... 90°
+
+      x_binwidth:=BinWidth;
+      y_binwidth:=BinWidth;
+
+      x_bins:=ceil(x_max / x_binwidth);
+      y_bins:=ceil(y_max / y_binwidth);
+    end;
+
+    if YAN_ZAN=true then
+    begin
+      x_max:=180; // YAN = -90° ... 90°
+      y_max:=180; // ZAN = -90° ... 90°
+
+      x_binwidth:=BinWidth;
+      y_binwidth:=BinWidth;
+
+      x_bins:=ceil(x_max / x_binwidth);
+      y_bins:=ceil(y_max / y_binwidth);
+    end;
+
+    if TTA_checked=true then
+    begin
+      x_max:=180; // TTA = 0° ... 180°
+
+      x_binwidth:=BinWidth;
+
+      x_bins:=ceil(x_max / x_binwidth);
+    end;
+
+
+    with OutputGrid do
+    begin
+      if (ALT_AZI=true) or (YAN_ZAN=true) then
+      begin
+        RowCount:=x_bins*y_bins+1;      // +1 for title
+        if DirectIrradiance and DiffuseIrradiance then
+          ColCount := 4 + 2*wantPhotonFlux + 2*photonCount
+        else
+          ColCount := 3 + wantPhotonFlux + 2*photonCount;
+      end;
+
+      if (TTA_checked=true) then
+      begin
+        RowCount:=x_bins+1;      // +1 for title
+        if DirectIrradiance and DiffuseIrradiance then
+          ColCount := 3 + 2*wantPhotonFlux + 2*photonCount
+        else
+          ColCount := 2 + wantPhotonFlux + 2*photonCount;
+      end;
+
+      // title
+
+      if ALT_AZI=true then
+      begin
+        Cells[0,0]:='Azimuth_(AZI)';
+        Cells[1,0]:='Altitude_(ALT)';
+
+        if (DirectIrradiance) and (DiffuseIrradiance) then
+        begin
+          Cells[2,0]:='Direct '+irradiance_title;
+          Cells[3,0]:='Diffuse '+irradiance_title;
+          if wantPhotonFlux=1 then
+          begin
+            Cells[4,0]:='Direct '+flux_title;
+            Cells[5,0]:='Diffuse '+flux_title;
+          end;
+          if wantPhotonData then
+          begin
+            for j := 0 to numberOfWavelengths-1 do
+              Cells[4+2*wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+            for j := 0 to numberOfWavelengths-1 do
+              Cells[4+2*wantPhotonflux+j+numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+          end;
+
+        end else
+          if DirectIrradiance then
+          begin
+            Cells[2,0]:='Direct '+irradiance_title;
+            if wantPhotonData then
+              for j := 0 to numberOfWavelengths-1 do
+                Cells[3+wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+
+            if wantPhotonflux=1 then
+              Cells[3,0]:='Direct '+flux_title;
+          end
+          else begin
+            Cells[2,0]:='Diffuse '+irradiance_title;
+            if wantPhotonData then
+              for j := 0 to numberOfWavelengths-1 do
+                Cells[3+wantPhotonflux+j,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+            if wantPhotonflux=1 then
+              Cells[3,0]:='Diffuse '+flux_title;
+          end;
+
+
+      end;
+
+      if YAN_ZAN=true then
+      begin
+        Cells[0,0]:='Y-Angle_(YAN)';
+        Cells[1,0]:='Z-Angle_(ZAN)';
+
+        if (DirectIrradiance) and (DiffuseIrradiance) then
+        begin
+          Cells[2,0]:='Direct '+irradiance_title;
+          Cells[3,0]:='Diffuse '+irradiance_title;
+          if wantPhotonData then
+          begin
+            for j := 0 to numberOfWavelengths-1 do
+              Cells[4+2*wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+            for j := 0 to numberOfWavelengths-1 do
+              Cells[4+2*wantPhotonflux+j+numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+          end;
+          if wantPhotonflux=1 then
+          begin
+            Cells[4,0]:='Direct '+flux_title;
+            Cells[5,0]:='Diffuse '+flux_title;
+          end;
+        end else
+          if DirectIrradiance then
+          begin
+            Cells[2,0]:='Direct '+irradiance_title;
+            if wantPhotonflux=1 then
+              Cells[3,0]:='Direct '+flux_title;
+            if wantPhotonData then
+              for j := 0 to numberOfWavelengths-1 do
+                Cells[3+wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+
+          end
+          else begin
+            Cells[2,0]:='Diffuse '+irradiance_title;
+            if wantPhotonData then
+              for j := 0 to numberOfWavelengths-1 do
+                Cells[3+wantPhotonflux+j,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+            if wantPhotonflux=1 then
+              Cells[3,0]:='Diffuse '+flux_title;
+          end;
+      end;
+
+      if TTA_checked=true then
+      begin
+        Cells[0,0]:='Inclination-Angle_(TTA)';
+
+        if (DirectIrradiance) and (DiffuseIrradiance) then
+        begin
+          Cells[1,0]:='Direct '+irradiance_title;
+          Cells[2,0]:='Diffuse '+irradiance_title;
+          if wantPhotonData then
+          begin
+            for j := 0 to numberOfWavelengths-1 do
+              Cells[3+2*wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+            for j := 0 to numberOfWavelengths-1 do
+              Cells[3+2*wantPhotonflux+j+numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+          end;
+          if wantPhotonflux=1 then
+          begin
+            Cells[3,0]:='Direct '+flux_title;
+            Cells[4,0]:='Diffuse '+flux_title;
+          end;
+        end else
+          if DirectIrradiance then
+          begin
+            Cells[1,0]:='Direct '+irradiance_title;
+            if wantPhotonflux=1 then
+              Cells[2,0]:='Direct '+flux_title;
+            if wantPhotonData then
+              for j := 0 to numberOfWavelengths-1 do
+                Cells[2+wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+
+          end
+          else begin
+            Cells[1,0]:='Diffuse '+irradiance_title;
+            if wantPhotonflux=1 then
+              Cells[2,0]:='Diffuse '+flux_title;
+            if wantPhotonData then
+              for j := 0 to numberOfWavelengths-1 do
+                Cells[2+wantPhotonflux+j+numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+          end;
+      end;
+
+      // data
+
+      if (ALT_AZI=true) or (YAN_ZAN=true) then
+        for j := 1 to RowCount do
+        begin
+          Cells[0,j]:=FloatToStr(BinMatrix[1,j]); // AZI bzw. YAN
+          Cells[1,j]:=FloatToStr(BinMatrix[2,j]); // ALT bzw. ZAN
+
+          if DirectIrradiance and DiffuseIrradiance then
+          begin
+            Cells[2,j]:=FloatToStr(BinMatrix[3,j]); // Direct irradiance
+            Cells[3,j]:=FloatToStr(BinMatrix[4,j]); // Diffuse irradiance
+            if wantPhotonflux=1 then
+            begin
+              Cells[4,j]:=FloatToStr(BinMatrix[5,j]); // Direct photon flux
+              Cells[5,j]:=FloatToStr(BinMatrix[6,j]); // Diffuse photon flux
+            end;
+            if wantPhotonData then
+            begin
+              for counter := 0 to numberOfWavelengths-1 do
+                Cells[4+2*wantPhotonflux+counter,j]:=FloatToStr(BinMatrix[7+counter,j]);
+              for counter := 0 to numberOfWavelengths-1 do
+                Cells[4+2*wantPhotonflux+counter+numberOfWavelengths,j]:=FloatToStr(BinMatrix[7+numberOfWavelengths+counter,j]);
+            end;
+
+          end else
+          if DirectIrradiance then
+          begin
+            Cells[2,j]:=FloatToStr(BinMatrix[3,j]); // Direct irradiance
+            if wantPhotonflux=1 then
+              Cells[3,j]:=FloatToStr(BinMatrix[5,j]); // Direct photon flux
+            if wantPhotonData then
+              for counter := 0 to numberOfWavelengths-1 do
+                Cells[3+wantPhotonflux+counter,j]:=FloatToStr(BinMatrix[7+counter,j]);
+          end
+          else begin
+            Cells[2,j]:=FloatToStr(BinMatrix[4,j]); // Diffuse irradiance
+            if wantPhotonflux=1 then
+              Cells[3,j]:=FloatToStr(BinMatrix[6,j]); // Diffuse photon flux
+            if wantPhotonData then
+              for counter := 0 to numberOfWavelengths-1 do
+                Cells[3+wantPhotonflux+counter+numberOfWavelengths,j]:=FloatToStr(BinMatrix[7+numberOfWavelengths+counter,j]);
+          end;
+        end;
+
+      if (TTA_checked=true) then
+        for j := 1 to RowCount do
+        begin
+          Cells[0,j]:=FloatToStr(BinMatrix[1,j]); // Matrix export
+
+          if DirectIrradiance and DiffuseIrradiance then
+          begin
+            Cells[1,j]:=FloatToStr(BinMatrix[3,j]); // Direct irradiance
+            Cells[2,j]:=FloatToStr(BinMatrix[4,j]); // Diffuse irradiance
+            if wantPhotonflux=1 then
+            begin
+              Cells[3,j]:=FloatToStr(BinMatrix[5,j]); // Direct photon flux
+              Cells[4,j]:=FloatToStr(BinMatrix[6,j]); // Diffuse photon flux
+            end;
+            if wantPhotonData then
+            begin
+              for counter := 0 to numberOfWavelengths-1 do
+                Cells[3+2*wantPhotonflux+counter,j]:=FloatToStr(BinMatrix[7+counter,j]);
+              for counter := 0 to numberOfWavelengths-1 do
+                Cells[3+2*wantPhotonflux+counter+numberOfWavelengths,j]:=FloatToStr(BinMatrix[7+numberOfWavelengths+counter,j]);
+            end;
+          end else
+          if DirectIrradiance then
+          begin
+            Cells[1,j]:=FloatToStr(BinMatrix[3,j]); // Direct irradiance
+            if wantPhotonflux=1 then
+              Cells[2,j]:=FloatToStr(BinMatrix[5,j]); // Direct photon flux
+            if wantPhotonData then
+              for counter := 0 to numberOfWavelengths-1 do
+                Cells[2+wantPhotonflux+counter,j]:=FloatToStr(BinMatrix[7+counter,j]);
+          end
+          else begin
+            Cells[1,j]:=FloatToStr(BinMatrix[4,j]); // Diffuse irradiance
+            if wantPhotonflux=1 then
+              Cells[2,j]:=FloatToStr(BinMatrix[6,j]); // Diffuse photon flux
+            if wantPhotonData then
+              for counter := 0 to numberOfWavelengths-1 do
+                Cells[2+wantPhotonflux+counter+numberOfWavelengths,j]:=FloatToStr(BinMatrix[7+numberOfWavelengths+counter,j]);
+          end;
+        end;
+    end;  // with OutputGrid do begin
+  except
+    result := false;
+  end;
+end;
+
 // Call to get the post processing data
 // ALT_AZI=true -> the function uses ALT & AZI, values of YAN & ZAN are ignored
 // ALT_AZI=false -> the function uses YAN & ZAN, values of ALT & AZI are ignored
@@ -1093,6 +1382,7 @@ exports
   InitializePostProcessing,
   BinValues,
   BinningOutput,
+  BinningOutputVar,
   PostProcessingOutput,
   calculateYearlyIrradianceBinMatrix,
   calculateYearlyIrradiancePostProcessingMatrix,

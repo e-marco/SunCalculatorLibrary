@@ -1,22 +1,20 @@
 {
-Copyright (c) 2015 Institute for Solar Energy Research Hamelin
+Updated version July 2019. 
+Forked from the original repository https://github.com/ISFH/SunCalculatorLibrary
 
+Copyright (c) 2015 Institute for Solar Energy Research Hamelin
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
 are met:
-
  1. Redistributions of source code must retain the above copyright
     notice, this list of conditions and the following disclaimer.
-
  2. Redistributions in binary form must reproduce the above copyright
     notice, this list of conditions and the following disclaimer in
     the documentation and/or other materials provided with the
     distribution.
-
  3. Neither the name of the copyright holder nor the names of its
     contributors may be used to endorse or promote products derived
     from this software without specific prior written permission.
-
  4. Redistributions of any form whatsoever must retain the following
     acknowledgment: 'This product includes the SunCalculator-Library developed 
 	by Marco Ernst and Hendrik Holst at the 
@@ -276,74 +274,6 @@ begin
   result.n4_sx_value := n4_sx;
 end;
 
-
-// input: LAT, DEC, AZI, ALT
-// output: TIL, ORI
-procedure PanelTrack(PanelTracking : integer; LAT, DEC, AZI, ALT : double; var TIL, ORI :double); STDCALL;
-begin
- // PanelTrackFactor := 1;
- // without cosine law tracking both axis
- if PanelTracking=0 then begin
- // lay panel on ground, so all photons are received
- TIL := 0;
- //PanelTrackFactor:=1;
- end;
-
- // tracking by seasons  -> TIL is corrected by sun's declination
- if PanelTracking=1 then
- begin
- TIL := LAT - DEC;
-//  result := abs(cos(HRA*pi180))
- //result := cos(-HRA*pi180);
- //PanelTrackFactor := abs(cos ( TTA*pi180 ));
- end;
- //if PanelTracking.ItemIndex=1 then result:=cos(HRA*pi180);
-
- // tracking by run of the day
- if PanelTracking=2 then begin
- //result:=cos(DEC*pi180);
-  ORI:=-(AZI-180);
-  TIL:=90-(ALT-DEC);
-  //PanelTrackFactor := abs(cos(TTA*pi180));
-
- end;
-
- // cosine law = tracking both axis fixed
-// if PanelTracking.ItemIndex=3 then PanelTrackFactor:=abs(cos(TTA*pi180));
-
- // no tracking
-// if PanelTracking.ItemIndex=4 then PanelTrackFactor:=1;
-end;
-
-function PanelTrackFactor(PanelTracking : integer; TTA:double):double; STDCALL;
-begin
-  result := 1;
- // without cosine law tracking both axis
- if PanelTracking=0 then
-  result:=1;
-
- // tracking by seasons  -> TIL is corrected by sun's declination
- if PanelTracking=1 then
-  result := abs(cos ( TTA*DEGREE_TO_RAD_FACTOR ));
-
- // tracking by run of the day
- if PanelTracking=2 then
-  result := abs(cos(TTA*DEGREE_TO_RAD_FACTOR));
-
- // cosine law = tracking both axis fixed
- if PanelTracking=3 then result:=abs(cos(TTA*DEGREE_TO_RAD_FACTOR));
-
- // no tracking
- if PanelTracking=4 then result:=1;
-end;
-
-function PanelTrackFactorDiffuse(PanelTracking : integer; TTA:double):double; STDCALL;
-begin
-  if PanelTracking=4 then
-    result := 1 else
-  result := abs(cos ( TTA*DEGREE_TO_RAD_FACTOR ));
-end;
-
 function HorizonToEquatorial(AZI_value,ALT_value,LAT_value : double):TEquatorialCoordinates; STDCALL;
 var
   x,y : double;
@@ -370,7 +300,7 @@ end;
 // Gueymard 1985
 // "Une paramétrisation de la luminance énergétique du ciel clair en fonction
 // de la turbidité"
-function distributionFactorClearSkyRcs(beta, sunsAltitudeInDegree, AOI_value, zenithAngleOfSkyElementInDegree :double):double; STDCALL;
+function distributionFactorClearSkyRcs(beta, sunsAltitudeInDegree, AOI_value, zenithAngleOfSkyElementInDegree, AOI_lower_limit :double):double; STDCALL;
 var
   A, B, F_N, B_C1, N_C1, t, D_c1,airMass,mtr : double;
   A_0, A_1, A_2, C_C1 : double;
@@ -383,10 +313,20 @@ var
 begin
   sunsZenithAngleInDegree := 90-sunsAltitudeInDegree;
 
-  if (AOI_value<=3) and (sunsAltitudeInDegree>0.01) then
+  
+  
+  // update 25/02/2019: Excluding the solar disk approx. 0.53° (= 2 x 0.26)!
+  // limit to 5°
+  if AOI_value < 0.5 then AOI_value := 0.5;
+  
+
+  AOI_lower_limit := min(5, max(0.26, AOI_lower_limit));
+  if (AOI_value>AOI_lower_limit) and (AOI_value<=3) and (sunsAltitudeInDegree>0.01) then
   begin
     // Zone C1 Circumsolar (AOI <= 3°)
-    airMass := abs(1 / sin(sunsAltitudeInDegree*DEGREE_TO_RAD_FACTOR));      // Air mass
+    // airMass := abs(1 / sin(sunsAltitudeInDegree*DEGREE_TO_RAD_FACTOR));      // Air mass
+    airMass := abs(1 / (cos(sunsZenithAngleInDegree*DEGREE_TO_RAD_FACTOR) + 0.48353 * (Power(sunsZenithAngleInDegree,0.095846))/Power(96.741-sunsZenithAngleInDegree,1.754)));
+
 
     if (airMass*beta)<1 then
       t := 6.556 * sqrt(airMass*beta) - 3.346*(airMass*beta)
@@ -409,7 +349,8 @@ begin
 
     F_N := exp(A * Power(beta,B));
 
-    B_C1 := (3/8 * Pi) * mtr * F_N;
+    // Update 25/02/2019: Interpreation of ambiguous equation 3/8pi = 3/(8*pi)
+    B_C1 := 3/(8 * Pi) * mtr * F_N;
 
     try
       A_0 := 3.17 - 1.98*airMass + 0.059*airMass*airMass + 11.36*sqrt(airMass);
@@ -431,7 +372,7 @@ begin
 
   // Zone C2 (3° < AOI <= 20°)
 
-  if (AOI_value > 3) and (AOI_value <= 20) then
+  if (AOI_value>AOI_lower_limit) and (AOI_value > 3) and (AOI_value <= 20) then
   begin
     b0 := 0.109 + 0.029 * AOI_value + 0.005 * exp( -0.015 * sunsZenithAngleInDegree + 1.07E-5 * sunsZenithAngleInDegree * sunsZenithAngleInDegree * sunsZenithAngleInDegree );
     b1 := 0.02 - 6E-4 * AOI_value;
@@ -471,10 +412,11 @@ var
 begin
   b := 0.5 + cloudOpacity;
 
-  // D1
-  //result := ( ( 1 + b*cos(zenithAngleOfSkyElementInDegree*DEGREE_TO_RAD_FACTOR))/ ( 1 + b) );
+  // Update 25/02/2019: Original equation for D1
+  result := ( 1 + b*cos(zenithAngleOfSkyElementInDegree*DEGREE_TO_RAD_FACTOR))/ ( 1 + b);
 
-  result := ( 1 + b*cos(zenithAngleOfSkyElementInDegree*DEGREE_TO_RAD_FACTOR));
+  // Equation without denominator (1 + b) -> increasing calculation speed, due to normalisation
+  // result := ( 1 + b*cos(zenithAngleOfSkyElementInDegree*DEGREE_TO_RAD_FACTOR));
 end;
 
 // angle between sun (AZI,ALT) and sky element (theta, zeta)
@@ -507,7 +449,6 @@ begin
     result := (rho - rho_0)/(1 - rho_0);
   except
     result := 0;
-    //SunCalcLog.LogMemo.Lines.Add(DateTimeToStr(now)+ ' - Exception in CloudOpacity calculation');
   end;
 
   if result<0 then result := 0;

@@ -1,7 +1,4 @@
 {
-Updated version July 2019. 
-Forked from the original repository https://github.com/ISFH/SunCalculatorLibrary
-
 Copyright (c) 2015 Institute for Solar Energy Research Hamelin
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -74,7 +71,7 @@ end;
 
 
 // Call before first input of binning data
-function InitializeBinning(BinWidth:integer;ALT_AZI,YAN_ZAN,TTA_checked:boolean):boolean; STDCALL;
+function InitializeBinning(BinWidth:integer;coordinateSystem:integer):boolean; STDCALL;
 var i,j,x,y : integer;
     x_max, y_max : integer;
     max_i : integer;
@@ -90,7 +87,7 @@ begin
       for j := 3 to 752 do
         BinMatrix[j,i] := 0;  // clear z Axis
 
-    if ALT_AZI=true then
+    if (coordinateSystem=0) or (coordinateSystem=3) then // horizontal and panel coordinates
     begin
       x_max:=360; // AZI = 0° ... 360°
       y_max:=180; // ALT = -90° ... 90°
@@ -111,7 +108,7 @@ begin
       end;
     end;
 
-    if YAN_ZAN=true then
+    if coordinateSystem=1 then
     begin
       x_max:=180; // YAN = -90° ... 90°
       y_max:=180; // ZAN = -90° ... 90°
@@ -132,7 +129,7 @@ begin
       end;
     end;
 
-    if TTA_checked=true then
+    if coordinateSystem=2 then
     begin
       x_max:=180; // TTA = 0° ... 180°
 
@@ -152,7 +149,7 @@ begin
 end;
 
 // Call before first input of post processing data
-function InitializePostProcessing(BinWidth:integer;ALT_AZI,YAN_ZAN,TTA_checked:boolean):boolean; STDCALL;
+function InitializePostProcessing(BinWidth:integer;coordinateSystem:integer):boolean; STDCALL;
 var i,j,x,y : integer;
     x_max, y_max, max_i : integer;
 begin
@@ -166,7 +163,7 @@ begin
       for j := 3 to 752 do
         PostProcessingMatrix[j,i] := 0;  // clear z Axis
 
-    if ALT_AZI=true then
+    if (coordinateSystem=0) or (coordinateSystem=3) then
     begin
       x_max:=360; // AZI = 0° ... 360°
       y_max:=180; // ALT = -90° ... 90°
@@ -188,7 +185,7 @@ begin
 
     end;
 
-    if YAN_ZAN=true then
+    if coordinateSystem=1 then
     begin
       x_max:=180; // YAN = -90° ... 90°
       y_max:=180; // ZAN = -90° ... 90°
@@ -209,7 +206,7 @@ begin
       end;
     end;
 
-    if TTA_checked=true then
+    if coordinateSystem=2 then
     begin
       x_max:=180; // TTA = 0° ... 180°
 
@@ -230,12 +227,12 @@ begin
 end;
 
 // Bin photon flux data either by ALT and AZI or by YAN and ZAN.
-// ALT_AZI=true -> the function uses ALT & AZI, values of YAN & ZAN are ignored
+// coordinateSystem=0 -> the function uses ALT & AZI, values of YAN & ZAN are ignored
 // ALT_AZI=false -> the function uses YAN & ZAN, values of ALT & AZI are ignored
 // z_value is the z-data, could be any floating point value
 // Direct is true for direct irradiance and false for diffuse irradiance
 function BinValues(AZI_value,ALT_value,YAN_value,ZAN_value,TTA_value,irradiance,photonflux:double;BinWidth:integer;
-  ALT_AZI,YAN_ZAN,TTA_checked, IsDirect:boolean; wantPhotonData:boolean; photonData:TArrayOfDouble):boolean; STDCALL;
+  coordinateSystem:integer; IsDirect:boolean; wantPhotonData:boolean; photonData:TArrayOfDouble):boolean; STDCALL;
 var i,counter,numberOfWavelengths : integer;
     x_max, y_max, x_bins, y_bins : integer;
     x_binwidth, y_binwidth : integer;
@@ -252,12 +249,14 @@ begin
     else
       numberOfWavelengths := 0;
 
-    if ALT_AZI=true then
+    if (coordinateSystem=0) or (coordinateSystem=3) then
     begin
       y_max:=180; // ALT = -90° ... 90°
 
     // Suche Reihe
-      findRow:=Floor(AZI_value/binWidth)*Round(y_max/BinWidth) + Floor((ALT_value+90)/BinWidth) + 1;
+      AZI_value := min(AZI_value, 359.999);
+
+      findRow:=Floor(AZI_value/binWidth)*Round(y_max/BinWidth) + Floor((ALT_value+89.999)/BinWidth) + 1;
 
 
       RowLocatedAA:
@@ -290,7 +289,7 @@ begin
           end;
     end;
 
-    if YAN_ZAN=true then
+    if coordinateSystem=1 then
     begin
       x_max:=180; // YAN = -90° ... 90°
       y_max:=180; // ZAN = -90° ... 90°
@@ -352,7 +351,7 @@ begin
           end;
     end;
 
-    if TTA_checked=true then
+    if coordinateSystem=2 then
     begin
       x_max:=180; // TTA = 0° ... 180°
 
@@ -409,25 +408,27 @@ end;
 
 
 // Call to get the binning data
-// ALT_AZI=true -> the function uses ALT & AZI, values of YAN & ZAN are ignored
+// coordinateSystem=0 -> the function uses ALT & AZI, values of YAN & ZAN are ignored
 // ALT_AZI=false -> the function uses YAN & ZAN, values of ALT & AZI are ignored
 // PhotonFlux is the z-data, could be any floating point value
 // direct, diffuse : true if checked!
-function BinningOutput(BinWidth : integer; ALT_AZI, YAN_ZAN, TTA_checked,
+function BinningOutput(BinWidth : integer; coordinateSystem:integer;
   DirectIrradiance, DiffuseIrradiance:boolean; irradiance_title, flux_title:string;
-  wantPhotonData:boolean; numberOfWavelengths:integer; startWavelength, endWavelength, intervalWavelength : integer):TStringGrid; STDCALL;
+  wantPhotonDataDirect, wantPhotonDataDiffuse:boolean; numberOfWavelengths:integer; startWavelength, endWavelength, intervalWavelength : integer):TStringGrid; STDCALL;
 var j,counter,photonCount : integer;
     x_max, y_max, x_bins, y_bins : integer;
     x_binwidth, y_binwidth : integer;
 begin
   result := TStringGrid.Create(nil);
-  if(wantPhotonData) then
+  if(wantPhotonDataDirect) and (wantPhotonDataDiffuse) then
+    photonCount := 2 * numberOfWavelengths
+  else if (wantPhotonDataDirect) or (wantPhotonDataDiffuse) then
     photonCount := numberOfWavelengths
   else
     photonCount := 0;
 
 
-  if ALT_AZI=true then
+  if (coordinateSystem=0) or (coordinateSystem=3) then
   begin
     x_max:=360; // AZI = 0° ... 360°
     y_max:=180; // ALT = -90° ... 90°
@@ -439,7 +440,7 @@ begin
     y_bins:=ceil(y_max / y_binwidth);
   end;
 
-  if YAN_ZAN=true then
+  if coordinateSystem=1 then
   begin
     x_max:=180; // YAN = -90° ... 90°
     y_max:=180; // ZAN = -90° ... 90°
@@ -451,7 +452,7 @@ begin
     y_bins:=ceil(y_max / y_binwidth);
   end;
 
-  if TTA_checked=true then
+  if coordinateSystem=2 then
   begin
     x_max:=180; // TTA = 0° ... 180°
 
@@ -463,30 +464,36 @@ begin
 
   with result do
   begin
-    if (ALT_AZI=true) or (YAN_ZAN=true) then
+    if (coordinateSystem=0) or (coordinateSystem=1) or (coordinateSystem=3) then
     begin
       RowCount:=x_bins*y_bins+1;      // +1 for title
       if DirectIrradiance and DiffuseIrradiance then
-        ColCount := 4 + 2*wantPhotonFlux + 2*photonCount
+        ColCount := 4 + 2*wantPhotonFlux + photonCount
       else
-        ColCount := 3 + wantPhotonFlux + 2*photonCount;
+        ColCount := 3 + wantPhotonFlux + photonCount;
     end;
 
-    if (TTA_checked=true) then
+    if (coordinateSystem=2) then
     begin
       RowCount:=x_bins+1;      // +1 for title
       if DirectIrradiance and DiffuseIrradiance then
-        ColCount := 3 + 2*wantPhotonFlux + 2*photonCount
+        ColCount := 3 + 2*wantPhotonFlux + photonCount
       else
-        ColCount := 2 + wantPhotonFlux + 2*photonCount;
+        ColCount := 2 + wantPhotonFlux + photonCount;
     end;
 
     // title
 
-    if ALT_AZI=true then
+    if (coordinateSystem=0) or (coordinateSystem=3) then
     begin
-      Cells[0,0]:='Azimuth_(AZI)';
-      Cells[1,0]:='Altitude_(ALT)';
+      if (coordinateSystem=0) then
+      begin
+        Cells[0,0]:='Azimuth_(AZI)';
+        Cells[1,0]:='Altitude_(ALT)';
+      end else begin
+        Cells[0,0]:='PanelAzimuth_(AZI)';
+        Cells[1,0]:='PanelAltitude_(ALT)';
+      end;
 
       if (DirectIrradiance) and (DiffuseIrradiance) then
       begin
@@ -497,19 +504,22 @@ begin
           Cells[4,0]:='Direct '+flux_title;
           Cells[5,0]:='Diffuse '+flux_title;
         end;
-        if wantPhotonData then
+        if wantPhotonDataDirect then
         begin
           for j := 0 to numberOfWavelengths-1 do
             Cells[4+2*wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+        end;
+        if wantPhotonDataDiffuse then
+        begin
           for j := 0 to numberOfWavelengths-1 do
-            Cells[4+2*wantPhotonflux+j+numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+            Cells[4+2*wantPhotonflux+j+photonCount - numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
         end;
 
       end else
         if DirectIrradiance then
         begin
           Cells[2,0]:='Direct '+irradiance_title;
-          if wantPhotonData then
+          if wantPhotonDataDirect then
             for j := 0 to numberOfWavelengths-1 do
               Cells[3+wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
 
@@ -518,7 +528,7 @@ begin
         end
         else begin
           Cells[2,0]:='Diffuse '+irradiance_title;
-          if wantPhotonData then
+          if wantPhotonDataDiffuse then
             for j := 0 to numberOfWavelengths-1 do
               Cells[3+wantPhotonflux+j,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
           if wantPhotonflux=1 then
@@ -528,7 +538,7 @@ begin
 
     end;
 
-    if YAN_ZAN=true then
+    if coordinateSystem=1 then
     begin
       Cells[0,0]:='Y-Angle_(YAN)';
       Cells[1,0]:='Z-Angle_(ZAN)';
@@ -537,12 +547,16 @@ begin
       begin
         Cells[2,0]:='Direct '+irradiance_title;
         Cells[3,0]:='Diffuse '+irradiance_title;
-        if wantPhotonData then
+        if wantPhotonDataDirect then
         begin
           for j := 0 to numberOfWavelengths-1 do
             Cells[4+2*wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+        end;
+
+        if wantPhotonDataDiffuse then
+        begin
           for j := 0 to numberOfWavelengths-1 do
-            Cells[4+2*wantPhotonflux+j+numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+            Cells[4+2*wantPhotonflux+j+photoncount - numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
         end;
         if wantPhotonflux=1 then
         begin
@@ -555,14 +569,14 @@ begin
           Cells[2,0]:='Direct '+irradiance_title;
           if wantPhotonflux=1 then
             Cells[3,0]:='Direct '+flux_title;
-          if wantPhotonData then
+          if wantPhotonDataDirect then
             for j := 0 to numberOfWavelengths-1 do
               Cells[3+wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
 
         end
         else begin
           Cells[2,0]:='Diffuse '+irradiance_title;
-          if wantPhotonData then
+          if wantPhotonDataDiffuse then
             for j := 0 to numberOfWavelengths-1 do
               Cells[3+wantPhotonflux+j,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
           if wantPhotonflux=1 then
@@ -570,7 +584,7 @@ begin
         end;
     end;
 
-    if TTA_checked=true then
+    if coordinateSystem=2 then
     begin
       Cells[0,0]:='Inclination-Angle_(TTA)';
 
@@ -578,12 +592,15 @@ begin
       begin
         Cells[1,0]:='Direct '+irradiance_title;
         Cells[2,0]:='Diffuse '+irradiance_title;
-        if wantPhotonData then
+        if wantPhotonDataDirect then
         begin
           for j := 0 to numberOfWavelengths-1 do
             Cells[3+2*wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+        end;
+        if wantPhotonDataDiffuse then
+        begin
           for j := 0 to numberOfWavelengths-1 do
-            Cells[3+2*wantPhotonflux+j+numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
+            Cells[3+2*wantPhotonflux+j+photoncount - numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
         end;
         if wantPhotonflux=1 then
         begin
@@ -596,7 +613,7 @@ begin
           Cells[1,0]:='Direct '+irradiance_title;
           if wantPhotonflux=1 then
             Cells[2,0]:='Direct '+flux_title;
-          if wantPhotonData then
+          if wantPhotonDataDirect then
             for j := 0 to numberOfWavelengths-1 do
               Cells[2+wantPhotonflux+j,0]:='Direct '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
 
@@ -605,7 +622,7 @@ begin
           Cells[1,0]:='Diffuse '+irradiance_title;
           if wantPhotonflux=1 then
             Cells[2,0]:='Diffuse '+flux_title;
-          if wantPhotonData then
+          if wantPhotonDataDiffuse then
             for j := 0 to numberOfWavelengths-1 do
               Cells[2+wantPhotonflux+j+numberOfWavelengths,0]:='Diffuse '+FloatToStr(startWavelength + j*intervalWavelength)+'nm [#Photons/(cm^2*nm)]';
         end;
@@ -613,7 +630,7 @@ begin
 
     // data
 
-    if (ALT_AZI=true) or (YAN_ZAN=true) then
+    if (coordinateSystem=0) or (coordinateSystem=1) or (coordinateSystem=3) then
       for j := 1 to RowCount do
       begin
         Cells[0,j]:=FloatToStr(BinMatrix[1,j]); // AZI bzw. YAN
@@ -621,79 +638,85 @@ begin
 
         if DirectIrradiance and DiffuseIrradiance then
         begin
-          Cells[2,j]:=FloatToStr(BinMatrix[3,j]); // Direct irradiance
-          Cells[3,j]:=FloatToStr(BinMatrix[4,j]); // Diffuse irradiance
+          Cells[2,j]:=FloatToStrF(BinMatrix[3,j], ffGeneral, 8,1); // Direct irradiance
+          Cells[3,j]:=FloatToStrF(BinMatrix[4,j], ffGeneral, 8,1); // Diffuse irradiance
           if wantPhotonflux=1 then
           begin
-            Cells[4,j]:=FloatToStr(BinMatrix[5,j]); // Direct photon flux
-            Cells[5,j]:=FloatToStr(BinMatrix[6,j]); // Diffuse photon flux
+            Cells[4,j]:=FloatToStrF(BinMatrix[5,j], ffFixed, 13,0); // Direct photon flux
+            Cells[5,j]:=FloatToStrF(BinMatrix[6,j], ffFixed, 13,0); // Diffuse photon flux
           end;
-          if wantPhotonData then
+          if wantPhotonDataDirect then
           begin
             for counter := 0 to numberOfWavelengths-1 do
-              Cells[4+2*wantPhotonflux+counter,j]:=FloatToStr(BinMatrix[7+counter,j]);
+              Cells[4+2*wantPhotonflux+counter,j]:=FloatToStrF(BinMatrix[7+counter,j], ffFixed, 13,0);
+          end;
+          if wantPhotonDataDiffuse then
+          begin
             for counter := 0 to numberOfWavelengths-1 do
-              Cells[4+2*wantPhotonflux+counter+numberOfWavelengths,j]:=FloatToStr(BinMatrix[7+numberOfWavelengths+counter,j]);
+              Cells[4+2*wantPhotonflux+counter+photoncount - numberOfWavelengths,j]:=FloatToStrF(BinMatrix[7+numberOfWavelengths+counter,j], ffFixed, 13,0);
           end;
           
         end else
         if DirectIrradiance then
         begin
-          Cells[2,j]:=FloatToStr(BinMatrix[3,j]); // Direct irradiance
+          Cells[2,j]:=FloatToStrF(BinMatrix[3,j], ffGeneral, 8,1); // Direct irradiance
           if wantPhotonflux=1 then
-            Cells[3,j]:=FloatToStr(BinMatrix[5,j]); // Direct photon flux
-          if wantPhotonData then
+            Cells[3,j]:=FloatToStrF(BinMatrix[5,j], ffFixed, 15,0); // Direct photon flux
+          if wantPhotonDataDirect then
             for counter := 0 to numberOfWavelengths-1 do
-              Cells[3+wantPhotonflux+counter,j]:=FloatToStr(BinMatrix[7+counter,j]);
+              Cells[3+wantPhotonflux+counter,j]:=FloatToStrF(BinMatrix[7+counter,j], ffFixed, 13,0);
         end
         else begin
-          Cells[2,j]:=FloatToStr(BinMatrix[4,j]); // Diffuse irradiance
+          Cells[2,j]:=FloatToStrF(BinMatrix[4,j], ffGeneral, 8,1); // Diffuse irradiance
           if wantPhotonflux=1 then
-            Cells[3,j]:=FloatToStr(BinMatrix[6,j]); // Diffuse photon flux
-          if wantPhotonData then
+            Cells[3,j]:=FloatToStrF(BinMatrix[6,j], ffFixed, 15,0); // Diffuse photon flux
+          if wantPhotonDataDiffuse then
             for counter := 0 to numberOfWavelengths-1 do
-              Cells[3+wantPhotonflux+counter+numberOfWavelengths,j]:=FloatToStr(BinMatrix[7+numberOfWavelengths+counter,j]);
+              Cells[3+wantPhotonflux+counter+photoncount - numberOfWavelengths,j]:=FloatToStrF(BinMatrix[7+numberOfWavelengths+counter,j], ffFixed, 13,0);
         end;
       end;
 
-    if (TTA_checked=true) then
+    if (coordinateSystem=2) then
       for j := 1 to RowCount do
       begin
         Cells[0,j]:=FloatToStr(BinMatrix[1,j]); // Matrix export
 
         if DirectIrradiance and DiffuseIrradiance then
         begin
-          Cells[1,j]:=FloatToStr(BinMatrix[3,j]); // Direct irradiance
-          Cells[2,j]:=FloatToStr(BinMatrix[4,j]); // Diffuse irradiance
+          Cells[1,j]:=FloatToStrF(BinMatrix[3,j], ffGeneral, 8,1); // Direct irradiance
+          Cells[2,j]:=FloatToStrF(BinMatrix[4,j], ffGeneral, 8,1); // Diffuse irradiance
           if wantPhotonflux=1 then
           begin
-            Cells[3,j]:=FloatToStr(BinMatrix[5,j]); // Direct photon flux
-            Cells[4,j]:=FloatToStr(BinMatrix[6,j]); // Diffuse photon flux
+            Cells[3,j]:=FloatToStrF(BinMatrix[5,j], ffFixed, 15,0); // Direct photon flux
+            Cells[4,j]:=FloatToStrF(BinMatrix[6,j], ffFixed, 15,0); // Diffuse photon flux
           end;
-          if wantPhotonData then
+          if wantPhotonDataDirect then
           begin
             for counter := 0 to numberOfWavelengths-1 do
-              Cells[3+2*wantPhotonflux+counter,j]:=FloatToStr(BinMatrix[7+counter,j]);
+              Cells[3+2*wantPhotonflux+counter,j]:=FloatToStrF(BinMatrix[7+counter,j], ffFixed, 13,0);
+          end;
+          if wantPhotonDataDiffuse then
+          begin
             for counter := 0 to numberOfWavelengths-1 do
-              Cells[3+2*wantPhotonflux+counter+numberOfWavelengths,j]:=FloatToStr(BinMatrix[7+numberOfWavelengths+counter,j]);
+              Cells[3+2*wantPhotonflux+counter+photoncount - numberOfWavelengths,j]:=FloatToStrF(BinMatrix[7+numberOfWavelengths+counter,j], ffFixed, 13,0);
           end;
         end else
         if DirectIrradiance then
         begin
-          Cells[1,j]:=FloatToStr(BinMatrix[3,j]); // Direct irradiance
+          Cells[1,j]:=FloatToStrF(BinMatrix[3,j], ffGeneral, 8,1); // Direct irradiance
           if wantPhotonflux=1 then
-            Cells[2,j]:=FloatToStr(BinMatrix[5,j]); // Direct photon flux
-          if wantPhotonData then
+            Cells[2,j]:=FloatToStrF(BinMatrix[5,j], ffFixed, 15,0); // Direct photon flux
+          if wantPhotonDataDirect then
             for counter := 0 to numberOfWavelengths-1 do
-              Cells[2+wantPhotonflux+counter,j]:=FloatToStr(BinMatrix[7+counter,j]);
+              Cells[2+wantPhotonflux+counter,j]:=FloatToStrF(BinMatrix[7+counter,j], ffFixed, 13,0);
         end
         else begin
-          Cells[1,j]:=FloatToStr(BinMatrix[4,j]); // Diffuse irradiance
+          Cells[1,j]:=FloatToStrF(BinMatrix[4,j], ffGeneral, 8,1); // Diffuse irradiance
           if wantPhotonflux=1 then
-            Cells[2,j]:=FloatToStr(BinMatrix[6,j]); // Diffuse photon flux
-          if wantPhotonData then
+            Cells[2,j]:=FloatToStrF(BinMatrix[6,j], ffFixed, 15,0); // Diffuse photon flux
+          if wantPhotonDataDiffuse then
             for counter := 0 to numberOfWavelengths-1 do
-              Cells[2+wantPhotonflux+counter+numberOfWavelengths,j]:=FloatToStr(BinMatrix[7+numberOfWavelengths+counter,j]);
+              Cells[2+wantPhotonflux+counter+photoncount-numberOfWavelengths,j]:=FloatToStrF(BinMatrix[7+numberOfWavelengths+counter,j], ffFixed, 13,0);
         end;
       end;
   end;  // with OutputGrid do begin
@@ -701,11 +724,11 @@ end;
 
 
 // Call to get the binning data
-// ALT_AZI=true -> the function uses ALT & AZI, values of YAN & ZAN are ignored
+// coordinateSystem=0 -> the function uses ALT & AZI, values of YAN & ZAN are ignored
 // ALT_AZI=false -> the function uses YAN & ZAN, values of ALT & AZI are ignored
 // PhotonFlux is the z-data, could be any floating point value
 // direct, diffuse : true if checked!
-function BinningOutputVar(BinWidth : integer; ALT_AZI, YAN_ZAN, TTA_checked,
+function BinningOutputVar(BinWidth : integer; coordinateSystem:integer;
   DirectIrradiance, DiffuseIrradiance:boolean; irradiance_title, flux_title:string;
   wantPhotonData:boolean; numberOfWavelengths:integer; startWavelength, endWavelength, intervalWavelength : integer; var OutputGrid : TStringGrid):boolean; STDCALL;
 var j,counter,photonCount : integer;
@@ -721,7 +744,7 @@ begin
       photonCount := 0;
 
 
-    if ALT_AZI=true then
+    if (coordinateSystem=0) or (coordinateSystem=3) then
     begin
       x_max:=360; // AZI = 0° ... 360°
       y_max:=180; // ALT = -90° ... 90°
@@ -733,7 +756,7 @@ begin
       y_bins:=ceil(y_max / y_binwidth);
     end;
 
-    if YAN_ZAN=true then
+    if coordinateSystem=1 then
     begin
       x_max:=180; // YAN = -90° ... 90°
       y_max:=180; // ZAN = -90° ... 90°
@@ -745,7 +768,7 @@ begin
       y_bins:=ceil(y_max / y_binwidth);
     end;
 
-    if TTA_checked=true then
+    if coordinateSystem=2 then
     begin
       x_max:=180; // TTA = 0° ... 180°
 
@@ -757,7 +780,7 @@ begin
 
     with OutputGrid do
     begin
-      if (ALT_AZI=true) or (YAN_ZAN=true) then
+      if (coordinateSystem=0) or (coordinateSystem=1) or (coordinateSystem=3) then
       begin
         RowCount:=x_bins*y_bins+1;      // +1 for title
         if DirectIrradiance and DiffuseIrradiance then
@@ -766,7 +789,7 @@ begin
           ColCount := 3 + wantPhotonFlux + 2*photonCount;
       end;
 
-      if (TTA_checked=true) then
+      if (coordinateSystem=2) then
       begin
         RowCount:=x_bins+1;      // +1 for title
         if DirectIrradiance and DiffuseIrradiance then
@@ -777,10 +800,15 @@ begin
 
       // title
 
-      if ALT_AZI=true then
+      if (coordinateSystem=0) or (coordinateSystem=3) then
       begin
-        Cells[0,0]:='Azimuth_(AZI)';
-        Cells[1,0]:='Altitude_(ALT)';
+        if (coordinateSystem=0) then begin
+          Cells[0,0]:='Azimuth_(AZI)';
+          Cells[1,0]:='Altitude_(ALT)';
+        end else begin
+          Cells[0,0]:='PanelAzimuth_(AZI)';
+          Cells[1,0]:='PanelAltitude_(ALT)';
+        end;
 
         if (DirectIrradiance) and (DiffuseIrradiance) then
         begin
@@ -822,7 +850,7 @@ begin
 
       end;
 
-      if YAN_ZAN=true then
+      if coordinateSystem=1 then
       begin
         Cells[0,0]:='Y-Angle_(YAN)';
         Cells[1,0]:='Z-Angle_(ZAN)';
@@ -864,7 +892,7 @@ begin
           end;
       end;
 
-      if TTA_checked=true then
+      if coordinateSystem=2 then
       begin
         Cells[0,0]:='Inclination-Angle_(TTA)';
 
@@ -907,7 +935,7 @@ begin
 
       // data
 
-      if (ALT_AZI=true) or (YAN_ZAN=true) then
+      if (coordinateSystem=0) or (coordinateSystem=1) or (coordinateSystem=3) then
         for j := 1 to RowCount do
         begin
           Cells[0,j]:=FloatToStr(BinMatrix[1,j]); // AZI bzw. YAN
@@ -950,7 +978,7 @@ begin
           end;
         end;
 
-      if (TTA_checked=true) then
+      if (coordinateSystem=2) then
         for j := 1 to RowCount do
         begin
           Cells[0,j]:=FloatToStr(BinMatrix[1,j]); // Matrix export
@@ -997,11 +1025,11 @@ begin
 end;
 
 // Call to get the post processing data
-// ALT_AZI=true -> the function uses ALT & AZI, values of YAN & ZAN are ignored
+// coordinateSystem=0 -> the function uses ALT & AZI, values of YAN & ZAN are ignored
 // ALT_AZI=false -> the function uses YAN & ZAN, values of ALT & AZI are ignored
 // PhotonFlux is the z-data, could be any floating point value
 // direct, diffuse : true if checked!
-function PostProcessingOutput(BinWidth : integer; ALT_AZI, YAN_ZAN, TTA_checked,
+function PostProcessingOutput(BinWidth : integer; coordinateSystem:integer;
   DirectIrradiance, DiffuseIrradiance:boolean; irradiance_title, flux_title:string;
   wantPhotonData:boolean; numberOfWavelengths:integer; startWavelength, endWavelength, intervalWavelength : integer):TStringGrid; STDCALL;
 var j,counter,photonCount : integer;
@@ -1015,7 +1043,7 @@ begin
     photonCount := 0;
 
 
-  if ALT_AZI=true then
+  if (coordinateSystem=0) or (coordinateSystem=3) then
   begin
     x_max:=360; // AZI = 0° ... 360°
     y_max:=180; // ALT = -90° ... 90°
@@ -1027,7 +1055,7 @@ begin
     y_bins:=ceil(y_max / y_binwidth);
   end;
 
-  if YAN_ZAN=true then
+  if coordinateSystem=1 then
   begin
     x_max:=180; // YAN = -90° ... 90°
     y_max:=180; // ZAN = -90° ... 90°
@@ -1039,7 +1067,7 @@ begin
     y_bins:=ceil(y_max / y_binwidth);
   end;
 
-  if TTA_checked=true then
+  if coordinateSystem=2 then
   begin
     x_max:=180; // TTA = 0° ... 180°
 
@@ -1051,7 +1079,7 @@ begin
 
   with result do
   begin
-    if (ALT_AZI=true) or (YAN_ZAN=true) then
+    if (coordinateSystem=0) or (coordinateSystem=1) or (coordinateSystem=3) then
     begin
       RowCount:=x_bins*y_bins+1;      // +1 for title
       if DirectIrradiance and DiffuseIrradiance then
@@ -1060,7 +1088,7 @@ begin
         ColCount := 3 + wantPhotonFlux + 2*photonCount;
     end;
 
-    if (TTA_checked=true) then
+    if (coordinateSystem=2) then
     begin
       RowCount:=x_bins+1;      // +1 for title
       if DirectIrradiance and DiffuseIrradiance then
@@ -1071,10 +1099,15 @@ begin
 
     // title
 
-    if ALT_AZI=true then
+    if (coordinateSystem=0) or (coordinateSystem=3) then
     begin
-      Cells[0,0]:='Azimuth_(AZI)';
-      Cells[1,0]:='Altitude_(ALT)';
+      if (coordinateSystem=0) then begin
+        Cells[0,0]:='Azimuth_(AZI)';
+        Cells[1,0]:='Altitude_(ALT)';
+      end else begin
+        Cells[0,0]:='PanelAzimuth_(AZI)';
+        Cells[1,0]:='PanelAltitude_(ALT)';
+      end;
 
       if (DirectIrradiance) and (DiffuseIrradiance) then
       begin
@@ -1116,7 +1149,7 @@ begin
 
     end;
 
-    if YAN_ZAN=true then
+    if coordinateSystem=1 then
     begin
       Cells[0,0]:='Y-Angle_(YAN)';
       Cells[1,0]:='Z-Angle_(ZAN)';
@@ -1158,7 +1191,7 @@ begin
         end;
     end;
 
-    if TTA_checked=true then
+    if coordinateSystem=2 then
     begin
       Cells[0,0]:='Inclination-Angle_(TTA)';
 
@@ -1201,7 +1234,7 @@ begin
 
     // data
 
-    if (ALT_AZI=true) or (YAN_ZAN=true) then
+    if (coordinateSystem=0) or (coordinateSystem=1) or (coordinateSystem=3) then
       for j := 1 to RowCount do
       begin
         Cells[0,j]:=FloatToStr(PostProcessingMatrix[1,j]); // AZI bzw. YAN
@@ -1244,7 +1277,7 @@ begin
         end;
       end;
 
-    if (TTA_checked=true) then
+    if (coordinateSystem=2) then
       for j := 1 to RowCount do
       begin
         Cells[0,j]:=FloatToStr(PostProcessingMatrix[1,j]); // Matrix export

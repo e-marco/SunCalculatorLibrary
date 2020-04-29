@@ -1,7 +1,4 @@
 {
-Updated version July 2019. 
-Forked from the original repository https://github.com/ISFH/SunCalculatorLibrary
-
 Copyright (c) 2015 Institute for Solar Energy Research Hamelin
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -55,6 +52,25 @@ uses
 const
   SUNS_ORBIT_EXCENTRICITY = 0.0167; // excentricity  of sun's orbit
 
+function tand(angle_deg:double):double;
+begin
+  result := tan(angle_deg * DEGREE_TO_RAD_FACTOR);
+end;
+
+
+function cosd(angle_deg:double):double;
+begin
+  result := cos(angle_deg * DEGREE_TO_RAD_FACTOR);
+end;
+
+
+function sind(angle_deg:double):double;
+begin
+  result := sin(angle_deg * DEGREE_TO_RAD_FACTOR);
+end;
+
+
+
 // Calculation of the Julian Day for a given Date+Time
 function JulianDay(UniversalTime : TDateTime):double; STDCALL;
 var
@@ -94,12 +110,12 @@ begin
   while L > 360 do L:=L - 360;
   while ecliptic<0 do ecliptic := ecliptic + 360;
 
-  lambda := L + ( 2*SUNS_ORBIT_EXCENTRICITY*sin(g * (DEGREE_TO_RAD_FACTOR)) + 1.25 *SUNS_ORBIT_EXCENTRICITY*SUNS_ORBIT_EXCENTRICITY
-                *sin(2*g * DEGREE_TO_RAD_FACTOR) ) * (RAD_TO_DEGREE_FACTOR);
+  lambda := L + ( 2*SUNS_ORBIT_EXCENTRICITY*sind(g) + 1.25 *SUNS_ORBIT_EXCENTRICITY*SUNS_ORBIT_EXCENTRICITY
+                *sind(2*g) ) * (RAD_TO_DEGREE_FACTOR);
   // ecliptical length Lambda
-  tau := tan((ecliptic/2) * (DEGREE_TO_RAD_FACTOR))*tan((ecliptic/2) * (DEGREE_TO_RAD_FACTOR));
-  REC := lambda - (tau * sin(2*lambda * (DEGREE_TO_RAD_FACTOR)) - (Tau*Tau/2)
-                * sin(4*lambda*(DEGREE_TO_RAD_FACTOR)) ) * (RAD_TO_DEGREE_FACTOR);
+  tau := tand(ecliptic/2)*tand(ecliptic/2);
+  REC := lambda - (tau * sind(2*lambda) - (Tau*Tau/2)
+                * sind(4*lambda) ) * (RAD_TO_DEGREE_FACTOR);
   // Right ascension
 
   Result:=(L - REC) ;
@@ -165,7 +181,7 @@ begin
 
   // Sun's equation of center C, which accounts for the eccentrisity
   // of Earth's orbit around the Sun
-  equationOfCenter := (1.915 - 0.005 * julianCenturies) * sin(meanAnomaly*DEGREE_TO_RAD_FACTOR) + 0.020 * sin(2*meanAnomaly*DEGREE_TO_RAD_FACTOR);
+  equationOfCenter := (1.915 - 0.005 * julianCenturies) * sind(meanAnomaly) + 0.020 * sind(2*meanAnomaly);
 
   // True ecliptical longitude of the Sun LS
   eclipticalLongitude := meanLongitude + equationOfCenter;
@@ -174,7 +190,7 @@ begin
   obliquity := 23.439 - 0.013 * julianCenturies;
 
   // Sun's right ascension REC
-  rightAscension := arctan(tan(eclipticalLongitude*DEGREE_TO_RAD_FACTOR) * cos(obliquity*DEGREE_TO_RAD_FACTOR))*RAD_TO_DEGREE_FACTOR;
+  rightAscension := arctan(tand(eclipticalLongitude) * cosd(obliquity))*RAD_TO_DEGREE_FACTOR;
 
   // (right ascension value needs to be in the same quadrant as L)
   Lquadrant  := (floor( eclipticalLongitude/90)) * 90;
@@ -182,7 +198,7 @@ begin
   rightAscension := rightAscension + (Lquadrant - RECquadrant);
 
   // Declination DEC
-  result_sun_coordiante.declination_angle := arcsin( sin(rightAscension*DEGREE_TO_RAD_FACTOR)*sin(obliquity*DEGREE_TO_RAD_FACTOR) )*RAD_TO_DEGREE_FACTOR;
+  result_sun_coordiante.declination_angle := arcsin( sind(rightAscension)*sind(obliquity) )*RAD_TO_DEGREE_FACTOR;
 
   // Hour angle of the object HA
   // HRA is 0 if sun at noon, positive in the afternoon
@@ -194,13 +210,13 @@ begin
 
   // Altitude ALT of the Sun
 
-  result_sun_coordiante.altitude_angle := arcsin(sin(latitude*DEGREE_TO_RAD_FACTOR)*sin(result_sun_coordiante.declination_angle*DEGREE_TO_RAD_FACTOR)
-    +cos(latitude*DEGREE_TO_RAD_FACTOR)*cos(result_sun_coordiante.declination_angle*DEGREE_TO_RAD_FACTOR)*cos(result_sun_coordiante.hour_angle*DEGREE_TO_RAD_FACTOR))*RAD_TO_DEGREE_FACTOR;
+  result_sun_coordiante.altitude_angle := arcsin(sind(latitude)*sind(result_sun_coordiante.declination_angle)
+    +cosd(latitude)*cosd(result_sun_coordiante.declination_angle)*cosd(result_sun_coordiante.hour_angle))*RAD_TO_DEGREE_FACTOR;
 
   // Azimuth AZI measured eastward from the North
 
-  y := -cos(result_sun_coordiante.declination_angle*DEGREE_TO_RAD_FACTOR)*cos(latitude*DEGREE_TO_RAD_FACTOR)*sin(result_sun_coordiante.hour_angle*DEGREE_TO_RAD_FACTOR);
-  x := sin(result_sun_coordiante.declination_angle*DEGREE_TO_RAD_FACTOR) - sin(latitude*DEGREE_TO_RAD_FACTOR)*sin(result_sun_coordiante.altitude_angle*DEGREE_TO_RAD_FACTOR);
+  y := -cosd(result_sun_coordiante.declination_angle)*cosd(latitude)*sind(result_sun_coordiante.hour_angle);
+  x := sind(result_sun_coordiante.declination_angle) - sind(latitude)*sind(result_sun_coordiante.altitude_angle);
 
   result_sun_coordiante.azimuthal_angle := arctan (y/x) * RAD_TO_DEGREE_FACTOR;
 
@@ -236,25 +252,25 @@ var
   n4_sx,n4_sy,n4_sz : double;
   YAN_value, ZAN_value, TTA_value : double;
 begin
-  n_sx:=cos(DEC_value*DEGREE_TO_RAD_FACTOR)*cos(HRA_value*DEGREE_TO_RAD_FACTOR);
-  n_sy:=-cos(DEC_value*DEGREE_TO_RAD_FACTOR)*sin(HRA_value*DEGREE_TO_RAD_FACTOR);
-  n_sz:=sin(DEC_value*DEGREE_TO_RAD_FACTOR);
+  n_sx:=cosd(DEC_value)*cosd(HRA_value);
+  n_sy:=-cosd(DEC_value)*sind(HRA_value);
+  n_sz:=sind(DEC_value);
 
-  n1_sx:=n_sz*sin(LAT_value*DEGREE_TO_RAD_FACTOR) + n_sx*cos(LAT_value*DEGREE_TO_RAD_FACTOR);
+  n1_sx:=n_sz*sind(LAT_value) + n_sx*cosd(LAT_value);
   n1_sy:=n_sy;
-  n1_sz:=n_sz*cos(LAT_value*DEGREE_TO_RAD_FACTOR) - n_sx*sin(LAT_value*DEGREE_TO_RAD_FACTOR);
+  n1_sz:=n_sz*cosd(LAT_value) - n_sx*sind(LAT_value);
 
   n2_sx:=n1_sx;
-  n2_sy:=n1_sy*cos(ORI_value*DEGREE_TO_RAD_FACTOR) + n1_sz*sin(ORI_value*DEGREE_TO_RAD_FACTOR);
-  n2_sz:=-n1_sy*sin(ORI_value*DEGREE_TO_RAD_FACTOR) + n1_sz*cos(ORI_value*DEGREE_TO_RAD_FACTOR);
+  n2_sy:=n1_sy*cosd(ORI_value) + n1_sz*sind(ORI_value);
+  n2_sz:=-n1_sy*sind(ORI_value) + n1_sz*cosd(ORI_value);
 
-  n3_sx:=-n2_sz*sin(TIL_value*DEGREE_TO_RAD_FACTOR) + n2_sx*cos(TIL_value*DEGREE_TO_RAD_FACTOR);
+  n3_sx:=-n2_sz*sind(TIL_value) + n2_sx*cosd(TIL_value);
   n3_sy:=n2_sy;
-  n3_sz:=n2_sz*cos(TIL_value*DEGREE_TO_RAD_FACTOR) + n2_sx*sin(TIL_value*DEGREE_TO_RAD_FACTOR);
+  n3_sz:=n2_sz*cosd(TIL_value) + n2_sx*sind(TIL_value);
 
   n4_sx:=n3_sx;
-  n4_sy:=n3_sy*cos(SKW_value*DEGREE_TO_RAD_FACTOR) + n3_sz*sin(SKW_value*DEGREE_TO_RAD_FACTOR);
-  n4_sz:=-n3_sy*sin(SKW_value*DEGREE_TO_RAD_FACTOR) + n3_sz*cos(SKW_value*DEGREE_TO_RAD_FACTOR);
+  n4_sy:=n3_sy*cosd(SKW_value) + n3_sz*sind(SKW_value);
+  n4_sz:=-n3_sy*sind(SKW_value) + n3_sz*cosd(SKW_value);
 
   if n4_sy<>0 then
     YAN_value := (ARCCOS(ABS(n4_sx)/sqrt(n4_sx*n4_sx+n4_sy*n4_sy))
@@ -265,6 +281,11 @@ begin
     ZAN_value := (ARCCOS(ABS(n4_sx)/sqrt(n4_sx*n4_sx+n4_sz*n4_sz))
     *(n4_sz/ABS(n4_sz)))*RAD_TO_DEGREE_FACTOR
   else ZAN_value := 0;
+
+if (n4_sx>=1) and (n4_sx<=1.01) then
+  n4_sx := 1;
+if (n4_sx<=0) and (n4_sx>=-0.01) then
+  n4_sx := 0;
 
   TTA_value := ARCCOS(n4_sx)*RAD_TO_DEGREE_FACTOR;
 
@@ -280,10 +301,10 @@ var
   DEC_value,HRA_value : double;
 begin
 
-  DEC_value := RAD_TO_DEGREE_FACTOR*arcsin(sin(ALT_value*DEGREE_TO_RAD_FACTOR)*sin(LAT_value*DEGREE_TO_RAD_FACTOR)+cos(ALT_value*DEGREE_TO_RAD_FACTOR)*cos(LAT_value*DEGREE_TO_RAD_FACTOR)*cos(AZI_value*DEGREE_TO_RAD_FACTOR));
+  DEC_value := RAD_TO_DEGREE_FACTOR*arcsin(sind(ALT_value)*sind(LAT_value)+cosd(ALT_value)*cosd(LAT_value)*cosd(AZI_value));
 
-  y := -cos(ALT_value*DEGREE_TO_RAD_FACTOR)*cos(LAT_value*DEGREE_TO_RAD_FACTOR)*sin(AZI_value*DEGREE_TO_RAD_FACTOR);
-  x := sin(ALT_value*DEGREE_TO_RAD_FACTOR) - sin(LAT_value*DEGREE_TO_RAD_FACTOR)*sin(DEC_value*DEGREE_TO_RAD_FACTOR);
+  y := -cosd(ALT_value)*cosd(LAT_value)*sind(AZI_value);
+  x := sind(ALT_value) - sind(LAT_value)*sind(DEC_value);
 
   HRA_value := arctan (y/x) * RAD_TO_DEGREE_FACTOR;
 
@@ -297,10 +318,41 @@ begin
 end;
 
 
+function inverseGeometricPenumbraFunction(slope_deg, opening_deg, limit_deg, incidenceAngle_deg : double):double;
+var
+  a,b,y1,y2,mu,phi,geometricPenumbraFactor : double;
+begin
+  if incidenceAngle_deg>=limit_deg then
+    result := 0
+  else if incidenceAngle_deg<=slope_deg then
+    result := 1
+  else begin
+    a := (tand(limit_deg) + tand(slope_deg)) / (tand(limit_deg) - tand(slope_deg));
+    b := 2 / (tand(limit_deg) - tand(slope_deg));
+    y1 := (b / 2) * tand(incidenceAngle_deg);
+    y2 := ((a*a - 1) / (2 * b * tand(incidenceAngle_deg)));
+
+    mu := 2 * arccos(y1 - y2);
+
+    phi := 2 * arccos((y1 + y2)/a);
+
+    geometricPenumbraFactor := (a*a*(phi - sin(phi)) + mu - sin(mu)) / (2*Pi);
+
+    if geometricPenumbraFactor<0 then
+      geometricPenumbraFactor := 0;
+
+    if geometricPenumbraFactor>1 then
+      geometricPenumbraFactor := 1;
+
+    result := 1 - geometricPenumbraFactor;
+  end;
+end;
+
+
 // Gueymard 1985
 // "Une paramétrisation de la luminance énergétique du ciel clair en fonction
 // de la turbidité"
-function distributionFactorClearSkyRcs(beta, sunsAltitudeInDegree, AOI_value, zenithAngleOfSkyElementInDegree, AOI_lower_limit :double):double; STDCALL;
+function distributionFactorClearSkyRcs(beta, sunsAltitudeInDegree, AOI_value, zenithAngleOfSkyElementInDegree, slope_deg, opening_deg, limit_deg :double):double; STDCALL;
 var
   A, B, F_N, B_C1, N_C1, t, D_c1,airMass,mtr : double;
   A_0, A_1, A_2, C_C1 : double;
@@ -310,22 +362,23 @@ var
 
   D_h,a0,a1,a2,a3,Z,D0,Kn,D_C : double;
   sunsZenithAngleInDegree : double;
+
+  penumbraFactor : double;
 begin
   sunsZenithAngleInDegree := 90-sunsAltitudeInDegree;
 
-  
-  
+
+
   // update 25/02/2019: Excluding the solar disk approx. 0.53° (= 2 x 0.26)!
   // limit to 5°
   if AOI_value < 0.5 then AOI_value := 0.5;
-  
 
-  AOI_lower_limit := min(5, max(0.26, AOI_lower_limit));
-  if (AOI_value>AOI_lower_limit) and (AOI_value<=3) and (sunsAltitudeInDegree>0.01) then
+  penumbraFactor := inverseGeometricPenumbraFunction(slope_deg, opening_deg, limit_deg, AOI_value);
+
+  if (AOI_value>slope_deg) and (AOI_value<=3) and (sunsAltitudeInDegree>0.01) then
   begin
     // Zone C1 Circumsolar (AOI <= 3°)
-    // airMass := abs(1 / sin(sunsAltitudeInDegree*DEGREE_TO_RAD_FACTOR));      // Air mass
-    airMass := abs(1 / (cos(sunsZenithAngleInDegree*DEGREE_TO_RAD_FACTOR) + 0.48353 * (Power(sunsZenithAngleInDegree,0.095846))/Power(96.741-sunsZenithAngleInDegree,1.754)));
+    airMass := abs(1 / (cosd(sunsZenithAngleInDegree) + 0.48353 * (Power(sunsZenithAngleInDegree,0.095846))/Power(96.741-sunsZenithAngleInDegree,1.754)));
 
 
     if (airMass*beta)<1 then
@@ -372,7 +425,7 @@ begin
 
   // Zone C2 (3° < AOI <= 20°)
 
-  if (AOI_value>AOI_lower_limit) and (AOI_value > 3) and (AOI_value <= 20) then
+  if (AOI_value>slope_deg) and (AOI_value > 3) and (AOI_value <= 20) then
   begin
     b0 := 0.109 + 0.029 * AOI_value + 0.005 * exp( -0.015 * sunsZenithAngleInDegree + 1.07E-5 * sunsZenithAngleInDegree * sunsZenithAngleInDegree * sunsZenithAngleInDegree );
     b1 := 0.02 - 6E-4 * AOI_value;
@@ -385,7 +438,7 @@ begin
     D_C2 := 0;
   // hemispherical
 
-  D_h := (1 + 0.01*sunsZenithAngleInDegree) * (0.275 - 0.395 * cos(zenithAngleOfSkyElementInDegree*DEGREE_TO_RAD_FACTOR) + 0.170 * cos(zenithAngleOfSkyElementInDegree*DEGREE_TO_RAD_FACTOR)*cos(zenithAngleOfSkyElementInDegree*DEGREE_TO_RAD_FACTOR));
+  D_h := (1 + 0.01*sunsZenithAngleInDegree) * (0.275 - 0.395 * cosd(zenithAngleOfSkyElementInDegree) + 0.170 * cosd(zenithAngleOfSkyElementInDegree)*cosd(zenithAngleOfSkyElementInDegree));
 
   // final model
   Z := 0.01 * sunsZenithAngleInDegree;
@@ -395,15 +448,12 @@ begin
   a3 := -0.113 + 2.010*beta - 2.950*beta*beta;
 
   KN := a0 + a1 * Z + a2 * Z*Z + a3 * Z*Z*Z;
-
   D_c := max(D_c1, D_c2);
-
   D0 := KN* ( D_c + D_h );
 
-  // function output
-
-  result := D0;
+  result := penumbraFactor * D0;
 end;
+
 // [17] S. Fritz
 // Illuminance and luminance under overcast skies
 function distributionFactorOvercastSkyRov(zenithAngleOfSkyElementInDegree,cloudOpacity :double):double; STDCALL;
@@ -411,19 +461,14 @@ var
   b : double;
 begin
   b := 0.5 + cloudOpacity;
-
-  // Update 25/02/2019: Original equation for D1
-  result := ( 1 + b*cos(zenithAngleOfSkyElementInDegree*DEGREE_TO_RAD_FACTOR))/ ( 1 + b);
-
-  // Equation without denominator (1 + b) -> increasing calculation speed, due to normalisation
-  // result := ( 1 + b*cos(zenithAngleOfSkyElementInDegree*DEGREE_TO_RAD_FACTOR));
+  result := ( 1 + b*cosd(zenithAngleOfSkyElementInDegree))/ ( 1 + b);
 end;
 
 // angle between sun (AZI,ALT) and sky element (theta, zeta)
 function AngleBetweenObjects(AZI_value,ALT_value,theta,zeta:double):double; STDCALL;
 begin
-  result := (RAD_TO_DEGREE_FACTOR)*arccos(sin(ALT_value*DEGREE_TO_RAD_FACTOR)*sin(zeta*DEGREE_TO_RAD_FACTOR)+cos(ALT_value*DEGREE_TO_RAD_FACTOR)
-    *cos(zeta*DEGREE_TO_RAD_FACTOR)*cos((theta-AZI_value)*DEGREE_TO_RAD_FACTOR));
+  result := (RAD_TO_DEGREE_FACTOR)*arccos(sind(ALT_value)*sind(zeta)+cosd(ALT_value)
+    *cosd(zeta)*cosd(theta-AZI_value));
 end;
 
 
@@ -457,7 +502,7 @@ end;
 
 function SunAboveHorizont(ALT_value:double):boolean; STDCALL;
 begin
-  if (ALT_value>=0.1) then result:=true else result:=false
+  if (ALT_value>=0) then result:=true else result:=false
 end;
 
 function SunOnPanel(TTA_condition:boolean;n4_sx_value:double):boolean; STDCALL;
@@ -484,17 +529,17 @@ function calculateCosinelawCorrectionFactor(isInputHorizontal, wantOutputNormal 
 begin
   if isInputHorizontal then
     if wantOutputNormal then
-      result := 1 / abs(cos(incidenceAngleHorizontal*DEGREE_TO_RAD_FACTOR))
+      result := 1 / abs(cosd(incidenceAngleHorizontal))
     else
       if incidenceAnglePanel=incidenceAngleHorizontal then
         result := 1
       else
-        result := abs(cos(incidenceAnglePanel*DEGREE_TO_RAD_FACTOR)) / abs(cos(incidenceAngleHorizontal*DEGREE_TO_RAD_FACTOR))
+        result := abs(cosd(incidenceAnglePanel)) / abs(cosd(incidenceAngleHorizontal))
   else
     if wantOutputNormal then
       result := 1
     else
-      result := abs(cos(incidenceAnglePanel*DEGREE_TO_RAD_FACTOR));
+      result := abs(cosd(incidenceAnglePanel));
 end;
 
 EXPORTS
